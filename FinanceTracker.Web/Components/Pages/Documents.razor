@@ -1,0 +1,122 @@
+@page "/documents"
+@using FinanceTracker.Core.Models
+@using FinanceTracker.Core.Services
+@inject DocumentService DocumentService
+@rendermode InteractiveServer
+
+<PageTitle>Documents - Finance Tracker</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Documents</h1>
+    <button class="btn btn-primary" @onclick="() => ShowForm(null)">+ Add Document</button>
+</div>
+
+@if (_showForm)
+{
+    <div class="card mb-4">
+        <div class="card-header">@(_editing?.Id > 0 ? "Edit Document" : "New Document")</div>
+        <div class="card-body">
+            <EditForm Model="_editing" OnValidSubmit="SaveAsync">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Name</label>
+                        <InputText class="form-control" @bind-Value="_editing!.Name" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Type</label>
+                        <InputSelect class="form-select" @bind-Value="_editing.Type">
+                            @foreach (var t in Enum.GetValues<DocumentType>())
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Expiration Date</label>
+                        <InputDate class="form-control" @bind-Value="_editing.ExpirationDate" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Reminder Date</label>
+                        <InputDate class="form-control" @bind-Value="_editing.ReminderDate" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Notes</label>
+                        <InputText class="form-control" @bind-Value="_editing.Notes" />
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-success me-2">Save</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<table class="table table-hover">
+    <thead>
+        <tr><th>Name</th><th>Type</th><th>Expires</th><th>Reminder</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+    @foreach (var d in _documents)
+    {
+        var daysLeft = (d.ExpirationDate - DateTime.Today).Days;
+        <tr>
+            <td>@d.Name</td>
+            <td>@d.Type</td>
+            <td class="@(daysLeft < 0 ? "text-danger fw-bold" : daysLeft <= 30 ? "text-warning fw-bold" : "")">
+                @d.ExpirationDate.ToString("MMM d, yyyy")
+                @if (daysLeft >= 0) { <small class="text-muted"> (@daysLeft days)</small> }
+                else { <small class="text-danger"> (expired)</small> }
+            </td>
+            <td>@(d.ReminderDate.HasValue ? d.ReminderDate.Value.ToString("MMM d, yyyy") : "-")</td>
+            <td><span class="badge @(d.IsActive ? "bg-success" : "bg-secondary")">@(d.IsActive ? "Active" : "Inactive")</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => ShowForm(d)">Edit</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(d.Id)">Delete</button>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@code {
+    List<Document> _documents = new();
+    Document? _editing;
+    bool _showForm;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    async Task LoadAsync()
+    {
+        var all = await DocumentService.GetActiveAsync();
+        _documents = all.OrderBy(d => d.ExpirationDate).ToList();
+    }
+
+    void ShowForm(Document? doc)
+    {
+        _editing = doc != null
+            ? new Document { Id = doc.Id, Name = doc.Name, Type = doc.Type, ExpirationDate = doc.ExpirationDate, ReminderDate = doc.ReminderDate, Notes = doc.Notes, IsActive = doc.IsActive }
+            : new Document { ExpirationDate = DateTime.Today.AddYears(1), IsActive = true };
+        _showForm = true;
+    }
+
+    void Cancel() { _showForm = false; _editing = null; }
+
+    async Task SaveAsync()
+    {
+        if (_editing == null) return;
+        if (_editing.Id > 0)
+            await DocumentService.UpdateDocumentAsync(_editing);
+        else
+            await DocumentService.AddDocumentAsync(_editing);
+        _showForm = false;
+        await LoadAsync();
+    }
+
+    async Task DeleteAsync(int id)
+    {
+        await DocumentService.DeleteDocumentAsync(id);
+        await LoadAsync();
+    }
+}
