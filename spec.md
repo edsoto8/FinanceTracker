@@ -8,6 +8,7 @@ Build a personal finance tracking application that helps users manage accounts, 
 
 * .NET 10
 * Blazor Web App
+* MudBlazor for UI components and theming
 * Spectre.Console CLI
 * Shared .NET class library
 * SQLite database
@@ -184,6 +185,22 @@ Users should be able to:
 
 ---
 
+## UI Framework
+
+Use MudBlazor for all Blazor UI components and theming.
+
+* Register `AddMudServices()` in `Program.cs`
+* Add MudBlazor CSS/JS imports in `App.razor`
+* Include `<MudThemeProvider>`, `<MudDialogProvider>`, and `<MudSnackbarProvider>` in the root layout
+* Use `MudDataGrid` or `MudTable` for tabular data (accounts, expenses, subscriptions, documents)
+* Use `MudChart` for balance trends and spending breakdowns
+* Use `MudDialog` for add/edit forms
+* Use `MudDatePicker` for date inputs
+* Use `MudSnackbar` for success/error notifications
+* Apply a consistent MudBlazor theme across all pages
+
+---
+
 ## Dashboard
 
 The Blazor dashboard should display:
@@ -309,7 +326,8 @@ The finished app should allow a user to:
 6. Add expense tracking.
 7. Add subscription tracking.
 8. Add document expiration tracking.
-9. Add dashboard.
-10. Add console workflows.
-11. Add Serilog.
-12. Add xUnit tests.
+9. Add MudBlazor and configure theme/layout.
+10. Add dashboard.
+11. Add console workflows.
+12. Add Serilog.
+13. Add xUnit tests.
