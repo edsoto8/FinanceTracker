@@ -1,0 +1,64 @@
+@inject IAccountService AccountService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Model.Name" Label="Name" Required="true"
+                          MaxLength="100" Immediate="true" />
+            <MudSelect @bind-Value="Model.Type" Label="Type" Class="mt-3">
+                @foreach (AccountType type in Enum.GetValues<AccountType>())
+                {
+                    <MudSelectItem Value="type">@type</MudSelectItem>
+                }
+            </MudSelect>
+            <MudNumericField @bind-Value="Model.Balance" Label="Current Balance" Format="N2" Class="mt-3" />
+            <MudTextField @bind-Value="Model.Institution" Label="Institution" MaxLength="100" Class="mt-3" />
+            <MudTextField @bind-Value="Model.Notes" Label="Notes" Lines="3" MaxLength="500" Class="mt-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Account Model { get; set; } = new();
+
+    private MudForm _form = default!;
+
+    private async Task Save()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Snackbar.Add("Name is required", Severity.Error);
+            return;
+        }
+
+        if (Model.Id == 0)
+        {
+            await AccountService.AddAccountAsync(Model);
+            Snackbar.Add("Account added", Severity.Success);
+        }
+        else
+        {
+            await AccountService.UpdateAccountAsync(Model);
+            Snackbar.Add("Account updated", Severity.Success);
+        }
+
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

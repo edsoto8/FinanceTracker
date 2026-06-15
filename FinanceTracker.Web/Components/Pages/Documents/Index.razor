@@ -1,0 +1,103 @@
+@page "/documents"
+@inject IDocumentService DocumentService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Documents</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Documents</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenDialog(null))">Add Document</MudButton>
+</MudStack>
+
+<MudTable Items="_documents" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Type</MudTh>
+        <MudTh>Expiration</MudTh>
+        <MudTh>Reminder</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Type">@context.Type</MudTd>
+        <MudTd DataLabel="Expiration">@context.ExpirationDate.ToString("MMM d, yyyy")</MudTd>
+        <MudTd DataLabel="Reminder">@(context.ReminderDate?.ToString("MMM d, yyyy") ?? "—")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context)">@StatusText(context)</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => OpenDialog(context))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => Delete(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No documents yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<Document> _documents = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        _documents = (await DocumentService.GetAllAsync()).ToList();
+        _loading = false;
+    }
+
+    private static string StatusText(Document doc)
+    {
+        if (!doc.IsActive) return "Inactive";
+        if (doc.ExpirationDate.Date < DateTime.Today) return "Expired";
+        if (doc.ExpirationDate.Date <= DateTime.Today.AddDays(30)) return "Expiring Soon";
+        return "OK";
+    }
+
+    private static Color StatusColor(Document doc) => StatusText(doc) switch
+    {
+        "Expired" => Color.Error,
+        "Expiring Soon" => Color.Warning,
+        "OK" => Color.Success,
+        _ => Color.Default
+    };
+
+    private async Task OpenDialog(Document? document)
+    {
+        var parameters = new DialogParameters<DocumentDialog>
+        {
+            { x => x.Model, document is null
+                ? new Document { ExpirationDate = DateTime.Today.AddYears(1) }
+                : Clone(document) }
+        };
+        var dialog = await DialogService.ShowAsync<DocumentDialog>(
+            document is null ? "Add Document" : "Edit Document", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await Load();
+        }
+    }
+
+    private async Task Delete(Document document)
+    {
+        await DocumentService.DeleteAsync(document.Id);
+        Snackbar.Add("Document deleted", Severity.Info);
+        await Load();
+    }
+
+    private static Document Clone(Document d) => new()
+    {
+        Id = d.Id, Name = d.Name, Type = d.Type, ExpirationDate = d.ExpirationDate,
+        ReminderDate = d.ReminderDate, Notes = d.Notes, IsActive = d.IsActive,
+        CreatedAt = d.CreatedAt, UpdatedAt = d.UpdatedAt
+    };
+}

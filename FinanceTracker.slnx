@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="FinanceTracker.Console/FinanceTracker.Console.csproj" />
+  <Project Path="FinanceTracker.Core/FinanceTracker.Core.csproj" />
+  <Project Path="FinanceTracker.Data/FinanceTracker.Data.csproj" />
+  <Project Path="FinanceTracker.Tests/FinanceTracker.Tests.csproj" />
+  <Project Path="FinanceTracker.Web/FinanceTracker.Web.csproj" />
+</Solution>

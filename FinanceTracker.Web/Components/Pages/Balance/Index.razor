@@ -1,0 +1,102 @@
+@page "/balance"
+@inject IAccountService AccountService
+@inject IBalanceService BalanceService
+@inject IDialogService DialogService
+
+<PageTitle>Balance History</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Balance History</MudText>
+
+<MudGrid>
+    <MudItem xs="12" sm="6" md="4">
+        <MudSelect T="int" Value="_selectedAccountId" ValueChanged="OnAccountChanged"
+                   Label="Account" Variant="Variant.Outlined">
+            @foreach (var account in _accounts)
+            {
+                <MudSelectItem T="int" Value="account.Id">@account.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="8" Class="d-flex align-center">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Disabled="_selectedAccountId == 0" OnClick="AddSnapshot">Add Snapshot</MudButton>
+    </MudItem>
+</MudGrid>
+
+@if (_entries.Count > 0)
+{
+    <MudPaper Class="pa-4 mt-4" Elevation="2">
+        <MudChart T="double" ChartType="ChartType.Line" ChartSeries="_series" ChartLabels="_labels"
+                  Width="100%" Height="300px" />
+    </MudPaper>
+
+    <MudDataGrid Items="_entries" Class="mt-4" Dense="true">
+        <Columns>
+            <PropertyColumn Property="x => x.EntryDate" Title="Date" Format="yyyy-MM-dd" />
+            <PropertyColumn Property="x => x.Amount" Title="Amount" Format="C" />
+            <PropertyColumn Property="x => x.Notes" Title="Notes" />
+        </Columns>
+    </MudDataGrid>
+}
+else if (_selectedAccountId != 0)
+{
+    <MudAlert Severity="Severity.Info" Class="mt-4">No balance snapshots for this account yet.</MudAlert>
+}
+
+@code {
+    private List<Account> _accounts = new();
+    private int _selectedAccountId;
+    private List<BalanceEntry> _entries = new();
+    private List<ChartSeries<double>> _series = new();
+    private string[] _labels = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _accounts = (await AccountService.GetActiveAccountsAsync()).ToList();
+        if (_accounts.Count > 0)
+        {
+            await OnAccountChanged(_accounts[0].Id);
+        }
+    }
+
+    private async Task OnAccountChanged(int accountId)
+    {
+        _selectedAccountId = accountId;
+        _entries = (await BalanceService.GetHistoryAsync(accountId)).ToList();
+        BuildChart();
+    }
+
+    private void BuildChart()
+    {
+        if (_entries.Count == 0)
+        {
+            _series = new();
+            _labels = Array.Empty<string>();
+            return;
+        }
+
+        _series = new()
+        {
+            new ChartSeries<double>
+            {
+                Name = "Balance",
+                Data = _entries.Select(e => (double)e.Amount).ToList()
+            }
+        };
+        _labels = _entries.Select(e => e.EntryDate.ToString("MMM d")).ToArray();
+    }
+
+    private async Task AddSnapshot()
+    {
+        var parameters = new DialogParameters<BalanceDialog>
+        {
+            { x => x.Model, new BalanceEntry { AccountId = _selectedAccountId } }
+        };
+        var dialog = await DialogService.ShowAsync<BalanceDialog>("Add Balance Snapshot", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await OnAccountChanged(_selectedAccountId);
+        }
+    }
+}

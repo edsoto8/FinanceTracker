@@ -1,0 +1,135 @@
+@page "/expenses"
+@inject IExpenseService ExpenseService
+@inject ICategoryService CategoryService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Expenses</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Expenses</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenDialog(null))">Add Expense</MudButton>
+</MudStack>
+
+<MudGrid Class="mb-2">
+    <MudItem xs="12" sm="4">
+        <MudDatePicker @bind-Date="_from" Label="From" Variant="Variant.Outlined" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudDatePicker @bind-Date="_to" Label="To" Variant="Variant.Outlined" />
+    </MudItem>
+    <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudButton Variant="Variant.Outlined" OnClick="Load">Apply</MudButton>
+    </MudItem>
+</MudGrid>
+
+<MudGrid>
+    <MudItem xs="12" md="8">
+        <MudDataGrid Items="_expenses" Dense="true" Loading="_loading">
+            <Columns>
+                <PropertyColumn Property="x => x.TransactionDate" Title="Date" Format="yyyy-MM-dd" />
+                <PropertyColumn Property="x => x.Description" Title="Description" />
+                <TemplateColumn Title="Category">
+                    <CellTemplate>@CategoryName(context.Item.CategoryId)</CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="x => x.Amount" Title="Amount" Format="C" />
+                <TemplateColumn Title="Actions" Sortable="false">
+                    <CellTemplate>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => OpenDialog(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => Delete(context.Item))" />
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+        </MudDataGrid>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.h6" GutterBottom="true">By Category</MudText>
+            @if (_categorySeries.Count > 0)
+            {
+                <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="_categorySeries"
+                          ChartLabels="_categoryLabels" Width="100%" Height="260px" />
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">No spending in this range.</MudText>
+            }
+            <MudText Typo="Typo.subtitle1" Class="mt-3">Total: @_total.ToString("C")</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private DateTime? _from = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime? _to = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1).AddDays(-1);
+    private List<Expense> _expenses = new();
+    private Dictionary<int, string> _categories = new();
+    private List<ChartSeries<double>> _categorySeries = new();
+    private string[] _categoryLabels = Array.Empty<string>();
+    private decimal _total;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = (await CategoryService.GetAllAsync()).ToDictionary(c => c.Id, c => c.Name);
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        var from = _from ?? DateTime.Today.AddMonths(-1);
+        var to = _to ?? DateTime.Today;
+        _expenses = (await ExpenseService.GetExpensesAsync(from, to)).ToList();
+
+        var breakdown = await ExpenseService.GetSpendingByCategoryAsync(from, to);
+        _categoryLabels = breakdown.Keys.ToArray();
+        _categorySeries = breakdown.Count == 0
+            ? new()
+            : new()
+            {
+                new ChartSeries<double>
+                {
+                    Name = "Spending",
+                    Data = breakdown.Values.Select(v => (double)v).ToList()
+                }
+            };
+        _total = _expenses.Sum(e => e.Amount);
+        _loading = false;
+    }
+
+    private string CategoryName(int id) => _categories.TryGetValue(id, out var name) ? name : "—";
+
+    private async Task OpenDialog(Expense? expense)
+    {
+        var parameters = new DialogParameters<ExpenseDialog>
+        {
+            { x => x.Model, expense is null ? new Expense { TransactionDate = DateTime.Today } : Clone(expense) }
+        };
+        var dialog = await DialogService.ShowAsync<ExpenseDialog>(
+            expense is null ? "Add Expense" : "Edit Expense", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await Load();
+        }
+    }
+
+    private async Task Delete(Expense expense)
+    {
+        await ExpenseService.DeleteExpenseAsync(expense.Id);
+        Snackbar.Add("Expense deleted", Severity.Info);
+        await Load();
+    }
+
+    private static Expense Clone(Expense e) => new()
+    {
+        Id = e.Id, AccountId = e.AccountId, CategoryId = e.CategoryId, Description = e.Description,
+        Amount = e.Amount, TransactionDate = e.TransactionDate, PaymentMethod = e.PaymentMethod,
+        Notes = e.Notes, CreatedAt = e.CreatedAt
+    };
+}

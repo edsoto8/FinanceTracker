@@ -1,0 +1,34 @@
+@inject IBalanceService BalanceService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudNumericField @bind-Value="Model.Amount" Label="Balance Amount" Format="N2" />
+        <MudDatePicker @bind-Date="_entryDate" Label="Date" Class="mt-3" />
+        <MudTextField @bind-Value="Model.Notes" Label="Notes" Lines="2" MaxLength="500" Class="mt-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public BalanceEntry Model { get; set; } = new();
+
+    private DateTime? _entryDate = DateTime.Today;
+
+    private async Task Save()
+    {
+        Model.EntryDate = _entryDate ?? DateTime.Today;
+        await BalanceService.AddEntryAsync(Model);
+        Snackbar.Add("Snapshot added", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

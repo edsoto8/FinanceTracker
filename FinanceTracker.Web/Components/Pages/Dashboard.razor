@@ -1,0 +1,166 @@
+@page "/"
+@inject IAccountService AccountService
+@inject IBalanceService BalanceService
+@inject IExpenseService ExpenseService
+@inject ISubscriptionService SubscriptionService
+@inject IDocumentService DocumentService
+
+<PageTitle>Dashboard</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Dashboard</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.overline">Net Worth</MudText>
+                <MudText Typo="Typo.h5" Color="@(_netWorth >= 0 ? Color.Success : Color.Error)">
+                    @_netWorth.ToString("C")
+                </MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.overline">Spending This Month</MudText>
+                <MudText Typo="Typo.h5">@_monthlySpending.ToString("C")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.overline">Monthly Subscriptions</MudText>
+                <MudText Typo="Typo.h5">@_monthlySubscriptions.ToString("C")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.overline">Active Accounts</MudText>
+                <MudText Typo="Typo.h5">@_accounts.Count</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2" Style="height:100%">
+                <MudText Typo="Typo.h6" GutterBottom="true">Upcoming Subscriptions (7 days)</MudText>
+                @if (_upcomingSubscriptions.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Nothing due soon.</MudText>
+                }
+                else
+                {
+                    <MudList T="Subscription" Dense="true">
+                        @foreach (var sub in _upcomingSubscriptions)
+                        {
+                            <MudListItem T="Subscription" Icon="@Icons.Material.Filled.Autorenew">
+                                @sub.Name — @sub.Cost.ToString("C") on @sub.NextBillingDate.ToString("MMM d")
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2" Style="height:100%">
+                <MudText Typo="Typo.h6" GutterBottom="true">Documents Expiring (30 days)</MudText>
+                @if (_expiringDocuments.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No documents expiring soon.</MudText>
+                }
+                else
+                {
+                    <MudList T="Document" Dense="true">
+                        @foreach (var doc in _expiringDocuments)
+                        {
+                            <MudListItem T="Document" Icon="@Icons.Material.Filled.Warning">
+                                @doc.Name — expires @doc.ExpirationDate.ToString("MMM d, yyyy")
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2" Style="height:100%">
+                <MudText Typo="Typo.h6" GutterBottom="true">Recent Expenses</MudText>
+                @if (_recentExpenses.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No expenses recorded yet.</MudText>
+                }
+                else
+                {
+                    <MudList T="Expense" Dense="true">
+                        @foreach (var expense in _recentExpenses)
+                        {
+                            <MudListItem T="Expense" Icon="@Icons.Material.Filled.Receipt">
+                                @expense.Description — @expense.Amount.ToString("C")
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @expense.TransactionDate.ToString("MMM d")
+                                </MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2" Style="height:100%">
+                <MudText Typo="Typo.h6" GutterBottom="true">Account Summary</MudText>
+                @if (_accounts.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">No active accounts.</MudText>
+                }
+                else
+                {
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <thead>
+                            <tr><th>Account</th><th>Type</th><th class="mud-text-align-right">Balance</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var account in _accounts)
+                            {
+                                <tr>
+                                    <td>@account.Name</td>
+                                    <td>@account.Type</td>
+                                    <td class="mud-text-align-right">@account.Balance.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private decimal _netWorth;
+    private decimal _monthlySpending;
+    private decimal _monthlySubscriptions;
+    private List<Account> _accounts = new();
+    private List<Subscription> _upcomingSubscriptions = new();
+    private List<Document> _expiringDocuments = new();
+    private List<Expense> _recentExpenses = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var now = DateTime.Today;
+
+        _netWorth = await BalanceService.GetCurrentNetWorthAsync();
+        _monthlySpending = await ExpenseService.GetMonthlyTotalAsync(now.Year, now.Month);
+        _monthlySubscriptions = await SubscriptionService.GetMonthlyEstimateAsync();
+        _accounts = (await AccountService.GetActiveAccountsAsync()).ToList();
+        _upcomingSubscriptions = (await SubscriptionService.GetUpcomingAsync(7)).ToList();
+        _expiringDocuments = (await DocumentService.GetExpiringSoonAsync(30)).ToList();
+        _recentExpenses = (await ExpenseService.GetRecentAsync(5)).ToList();
+
+        _loading = false;
+    }
+}

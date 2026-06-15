@@ -1,0 +1,107 @@
+@page "/subscriptions"
+@inject ISubscriptionService SubscriptionService
+@inject ICategoryService CategoryService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Subscriptions</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Subscriptions</MudText>
+    <MudSpacer />
+    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">
+        Monthly est: @_monthlyEstimate.ToString("C")
+    </MudChip>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenDialog(null))">Add Subscription</MudButton>
+</MudStack>
+
+<MudTable Items="_subscriptions" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Cost</MudTh>
+        <MudTh>Frequency</MudTh>
+        <MudTh>Next Billing</MudTh>
+        <MudTh>Category</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Cost">@context.Cost.ToString("C")</MudTd>
+        <MudTd DataLabel="Frequency">@context.Frequency</MudTd>
+        <MudTd DataLabel="Next Billing">@context.NextBillingDate.ToString("MMM d, yyyy")</MudTd>
+        <MudTd DataLabel="Category">@CategoryName(context.CategoryId)</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => OpenDialog(context))" />
+            @if (context.IsActive)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small" Color="Color.Warning"
+                               OnClick="@(() => Deactivate(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No subscriptions yet.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<Subscription> _subscriptions = new();
+    private Dictionary<int, string> _categories = new();
+    private decimal _monthlyEstimate;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = (await CategoryService.GetAllAsync()).ToDictionary(c => c.Id, c => c.Name);
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _subscriptions = (await SubscriptionService.GetAllAsync()).ToList();
+        _monthlyEstimate = await SubscriptionService.GetMonthlyEstimateAsync();
+        _loading = false;
+    }
+
+    private string CategoryName(int id) => _categories.TryGetValue(id, out var name) ? name : "—";
+
+    private async Task OpenDialog(Subscription? subscription)
+    {
+        var parameters = new DialogParameters<SubscriptionDialog>
+        {
+            { x => x.Model, subscription is null
+                ? new Subscription { NextBillingDate = DateTime.Today }
+                : Clone(subscription) }
+        };
+        var dialog = await DialogService.ShowAsync<SubscriptionDialog>(
+            subscription is null ? "Add Subscription" : "Edit Subscription", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await Load();
+        }
+    }
+
+    private async Task Deactivate(Subscription subscription)
+    {
+        await SubscriptionService.DeactivateAsync(subscription.Id);
+        Snackbar.Add($"{subscription.Name} deactivated", Severity.Info);
+        await Load();
+    }
+
+    private static Subscription Clone(Subscription s) => new()
+    {
+        Id = s.Id, Name = s.Name, Cost = s.Cost, Frequency = s.Frequency,
+        NextBillingDate = s.NextBillingDate, CategoryId = s.CategoryId, AccountId = s.AccountId,
+        IsActive = s.IsActive, Notes = s.Notes
+    };
+}

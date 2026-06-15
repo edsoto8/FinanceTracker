@@ -1,0 +1,95 @@
+@page "/accounts"
+@inject IAccountService AccountService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Accounts</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Accounts</MudText>
+    <MudSpacer />
+    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">
+        Total: @_totalBalance.ToString("C")
+    </MudChip>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => OpenDialog(null))">Add Account</MudButton>
+</MudStack>
+
+<MudTable Items="_accounts" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Type</MudTh>
+        <MudTh>Institution</MudTh>
+        <MudTh Style="text-align:right">Balance</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Type">@context.Type</MudTd>
+        <MudTd DataLabel="Institution">@context.Institution</MudTd>
+        <MudTd DataLabel="Balance" Style="text-align:right">@context.Balance.ToString("C")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => OpenDialog(context))" />
+            @if (context.IsActive)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small" Color="Color.Warning"
+                               OnClick="@(() => Deactivate(context))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No accounts yet. Add your first one.</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private List<Account> _accounts = new();
+    private decimal _totalBalance;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        _accounts = (await AccountService.GetAllAccountsAsync()).ToList();
+        _totalBalance = await AccountService.GetTotalBalanceAsync();
+        _loading = false;
+    }
+
+    private async Task OpenDialog(Account? account)
+    {
+        var parameters = new DialogParameters<AccountDialog>
+        {
+            { x => x.Model, account is null ? new Account() : Clone(account) }
+        };
+        var dialog = await DialogService.ShowAsync<AccountDialog>(
+            account is null ? "Add Account" : "Edit Account", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await Load();
+        }
+    }
+
+    private async Task Deactivate(Account account)
+    {
+        await AccountService.DeactivateAccountAsync(account.Id);
+        Snackbar.Add($"{account.Name} deactivated", Severity.Info);
+        await Load();
+    }
+
+    private static Account Clone(Account a) => new()
+    {
+        Id = a.Id, Name = a.Name, Type = a.Type, Balance = a.Balance,
+        Institution = a.Institution, Notes = a.Notes, IsActive = a.IsActive,
+        CreatedAt = a.CreatedAt, UpdatedAt = a.UpdatedAt
+    };
+}
